@@ -15,6 +15,7 @@ const views = {
 
 const loginForm = document.getElementById("loginForm");
 const logoutBtn = document.getElementById("logoutBtn");
+const backBtn = document.getElementById("backBtn");
 const adminDocumentList = document.getElementById("adminDocumentList");
 const userDocumentList = document.getElementById("userDocumentList");
 const adminUserList = document.getElementById("adminUserList");
@@ -31,6 +32,8 @@ const userDocumentsCard = document.getElementById("userDocumentsCard");
 const adminSearchInput = document.getElementById("adminSearchInput");
 const userSearchInput = document.getElementById("userSearchInput");
 let activeSearch = { admin: null, user: null };
+let currentSection = "dashboard";
+let previousRoute = null;
 
 async function api(path, options = {}) {
   const res = await fetch(path, options);
@@ -46,6 +49,48 @@ function getCurrentUser() {
 function setVisibleView(viewName) {
   Object.values(views).forEach((view) => view.classList.add("hidden"));
   views[viewName].classList.remove("hidden");
+}
+
+function currentVisibleView() {
+  return Object.entries(views).find(([, el]) => !el.classList.contains("hidden"))?.[0] || "login";
+}
+
+function updateBackButton() {
+  const visible = currentVisibleView();
+  const show = Boolean(session.userId && previousRoute && (visible === "documentEditor" || visible === "userEditor"));
+  backBtn.hidden = !show;
+}
+
+function navigateTo(route) {
+  if (!route) return;
+  currentSection = route.section || "dashboard";
+
+  if (route.view === "admin") {
+    renderAdminDashboard();
+    setMenuActive(currentSection);
+    applyAdminMenuSection(currentSection);
+    setVisibleView("admin");
+    animateView("admin");
+  } else if (route.view === "user") {
+    renderUserDashboard();
+    setMenuActive(currentSection);
+    applyUserMenuSection(currentSection);
+    setVisibleView("user");
+    animateView("user");
+    updateBackButton();
+  } else {
+    setVisibleView(route.view || "login");
+    animateView(route.view || "login");
+  }
+
+  updateBackButton();
+}
+
+function savePreviousRoute() {
+  const v = currentVisibleView();
+  if (v === "admin" || v === "user") {
+    previousRoute = { view: v, section: currentSection };
+  }
 }
 
 function applyTheme(theme) {
@@ -128,6 +173,7 @@ async function refreshState() {
 async function renderApp() {
   if (!session.userId) {
     logoutBtn.hidden = true;
+    backBtn.hidden = true;
     setVisibleView("login");
     animateView("login");
     return;
@@ -137,19 +183,23 @@ async function renderApp() {
   logoutBtn.hidden = false;
 
   if (session.role === "admin") {
+    currentSection = "dashboard";
     renderAdminDashboard();
     setMenuActive("dashboard");
     applyAdminMenuSection("dashboard");
     setVisibleView("admin");
     animateView("admin");
+    updateBackButton();
     return;
   }
 
+  currentSection = "dashboard";
   renderUserDashboard();
   setMenuActive("dashboard");
   applyUserMenuSection("dashboard");
   setVisibleView("user");
   animateView("user");
+  updateBackButton();
 }
 
 function emptyMessage(text) {
@@ -228,6 +278,7 @@ function createActionButton(label, isDelete, onClick) {
 }
 
 function openDocumentEditor(mode, documentId = null) {
+  savePreviousRoute();
   documentEditorContext = { mode, documentId, ownerId: session.id };
   const editorTitle = document.getElementById("documentEditorTitle");
   const ownerLabel = document.getElementById("documentOwnerLabel");
@@ -254,9 +305,11 @@ function openDocumentEditor(mode, documentId = null) {
 
   setVisibleView("documentEditor");
   animateView("documentEditor");
+  updateBackButton();
 }
 
 function openUserEditor(mode, userInternalId = null) {
+  savePreviousRoute();
   userEditorContext = { mode, userInternalId };
   const title = document.getElementById("userEditorTitle");
 
@@ -276,6 +329,7 @@ function openUserEditor(mode, userInternalId = null) {
 
   setVisibleView("userEditor");
   animateView("userEditor");
+  updateBackButton();
 }
 
 async function deleteDocument(documentId, isAdminFlow) {
@@ -318,6 +372,7 @@ loginForm.addEventListener("submit", async (event) => {
     session = { userId: user.userId, role: user.role, id: user.id, name: user.name };
     loginForm.reset();
     activeSearch = { admin: null, user: null };
+    previousRoute = null;
     await renderApp();
   } catch (e) {
     alert(e.message);
@@ -327,6 +382,7 @@ loginForm.addEventListener("submit", async (event) => {
 logoutBtn.addEventListener("click", async () => {
   session = { userId: null, role: null, id: null, name: null };
   activeSearch = { admin: null, user: null };
+  previousRoute = null;
   await renderApp();
 });
 
@@ -403,6 +459,7 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
   navBtn.addEventListener("click", async () => {
     if (!session.userId) return;
     const target = navBtn.dataset.nav || "dashboard";
+    currentSection = target;
     setMenuActive(target);
 
     if (session.role === "admin") {
@@ -410,6 +467,7 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
       applyAdminMenuSection(target);
       setVisibleView("admin");
       animateView("admin");
+      updateBackButton();
       return;
     }
 
@@ -417,6 +475,7 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
     applyUserMenuSection(target);
     setVisibleView("user");
     animateView("user");
+    updateBackButton();
   });
 });
 
@@ -434,6 +493,12 @@ userSearchInput?.addEventListener('keydown', async (e) => {
   if (!q) { activeSearch.user = null; return renderUserDashboard(); }
   activeSearch.user = await semanticSearch(q);
   renderUserDashboard();
+});
+
+backBtn.addEventListener("click", () => {
+  navigateTo(previousRoute);
+  previousRoute = null;
+  updateBackButton();
 });
 
 lightModeBtn.addEventListener("click", () => setTheme("light"));

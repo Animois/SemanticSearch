@@ -92,6 +92,11 @@ function serveStatic(req, res) {
 
 async function handleApi(req, res) {
   try {
+
+    if (req.method === 'GET' && req.url === '/api/meta') {
+      return json(res, 200, { database: join(root, 'app.db') });
+    }
+
     if (req.method === 'POST' && req.url === '/api/login') {
       const body = await readBody(req);
       if (!body) return json(res, 400, { error: 'Invalid JSON body.' });
