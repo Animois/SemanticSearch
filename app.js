@@ -32,6 +32,11 @@ const userForm = document.getElementById("userForm");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeLabel = document.getElementById("themeLabel");
 const themeIcon = document.getElementById("themeIcon");
+const adminActionsCard = document.getElementById("adminActionsCard");
+const adminDocumentsCard = document.getElementById("adminDocumentsCard");
+const adminUsersCard = document.getElementById("adminUsersCard");
+const userActionsCard = document.getElementById("userActionsCard");
+const userDocumentsCard = document.getElementById("userDocumentsCard");
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -112,6 +117,48 @@ async function generateSummaryEmbedding(summary) {
   };
 }
 
+function setMenuActive(target) {
+  document.querySelectorAll("[data-nav]").forEach((btn) => {
+    const isActive = btn.dataset.nav === target;
+    btn.classList.toggle("menu-link-active", isActive);
+  });
+}
+
+function hideCard(card) {
+  if (card) card.classList.add("hidden");
+}
+
+function showCard(card) {
+  if (card) card.classList.remove("hidden");
+}
+
+function applyAdminMenuSection(target) {
+  showCard(adminActionsCard);
+  showCard(adminDocumentsCard);
+  showCard(adminUsersCard);
+
+  if (target === "documents") {
+    hideCard(adminUsersCard);
+  } else if (target === "users") {
+    hideCard(adminDocumentsCard);
+  }
+}
+
+function applyUserMenuSection(target) {
+  showCard(userActionsCard);
+  showCard(userDocumentsCard);
+
+  if (target === "dashboard") return;
+
+  if (target === "documents") {
+    showCard(userDocumentsCard);
+    hideCard(userActionsCard);
+    return;
+  }
+
+  alert("Users page is available only for admins.");
+}
+
 function renderApp() {
   const currentUser = getCurrentUser();
 
@@ -126,12 +173,16 @@ function renderApp() {
   logoutBtn.hidden = false;
   if (currentUser.role === "admin") {
     renderAdminDashboard();
+    setMenuActive("dashboard");
+    applyAdminMenuSection("dashboard");
     setVisibleView("admin");
     animateView("admin");
     return;
   }
 
   renderUserDashboard();
+  setMenuActive("dashboard");
+  applyUserMenuSection("dashboard");
   setVisibleView("user");
   animateView("user");
 }
@@ -426,15 +477,22 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
   navBtn.addEventListener("click", () => {
     const currentUser = getCurrentUser();
     if (!currentUser) return;
+
+    const target = navBtn.dataset.nav || "dashboard";
+    setMenuActive(target);
+
     if (currentUser.role === "admin") {
       renderAdminDashboard();
+      applyAdminMenuSection(target);
       setVisibleView("admin");
       animateView("admin");
-    } else {
-      renderUserDashboard();
-      setVisibleView("user");
-      animateView("user");
+      return;
     }
+
+    renderUserDashboard();
+    applyUserMenuSection(target);
+    setVisibleView("user");
+    animateView("user");
   });
 });
 

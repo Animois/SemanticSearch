@@ -152,3 +152,15 @@ html, body {
   border-color: rgb(71 85 105);
   background: rgb(30 41 59);
 }
+
+.menu-link-active {
+  color: rgb(30 41 59);
+  border-color: rgb(165 180 252);
+  background: rgb(238 242 255);
+}
+
+.dark .menu-link-active {
+  color: rgb(224 231 255);
+  border-color: rgb(99 102 241);
+  background: rgb(49 46 129 / 0.45);
+}
