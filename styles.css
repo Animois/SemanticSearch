@@ -164,3 +164,39 @@ html, body {
   border-color: rgb(99 102 241);
   background: rgb(49 46 129 / 0.45);
 }
+
+.theme-btn {
+  border: none;
+  border-radius: 0.65rem;
+  padding: 0.38rem 0.72rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgb(71 85 105);
+  background: transparent;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.theme-btn:hover {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+
+.dark .theme-btn {
+  color: rgb(148 163 184);
+}
+
+.dark .theme-btn:hover {
+  background: rgb(51 65 85);
+  color: rgb(241 245 249);
+}
+
+.theme-btn-active {
+  background: rgb(79 70 229);
+  color: white;
+}
+
+.dark .theme-btn-active {
+  background: rgb(99 102 241);
+  color: white;
+}

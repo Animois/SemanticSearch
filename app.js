@@ -29,9 +29,8 @@ const userDocumentList = document.getElementById("userDocumentList");
 const adminUserList = document.getElementById("adminUserList");
 const docForm = document.getElementById("documentForm");
 const userForm = document.getElementById("userForm");
-const themeToggleBtn = document.getElementById("themeToggleBtn");
-const themeLabel = document.getElementById("themeLabel");
-const themeIcon = document.getElementById("themeIcon");
+const lightModeBtn = document.getElementById("lightModeBtn");
+const darkModeBtn = document.getElementById("darkModeBtn");
 const adminActionsCard = document.getElementById("adminActionsCard");
 const adminDocumentsCard = document.getElementById("adminDocumentsCard");
 const adminUsersCard = document.getElementById("adminUsersCard");
@@ -68,15 +67,15 @@ function setVisibleView(viewName) {
 
 function applyTheme(theme) {
   const root = document.documentElement;
-  if (theme === "dark") {
-    root.classList.add("dark");
-    themeLabel.textContent = "Light";
-    themeIcon.textContent = "☀️";
-  } else {
-    root.classList.remove("dark");
-    themeLabel.textContent = "Dark";
-    themeIcon.textContent = "🌙";
-  }
+  const body = document.body;
+  const isDark = theme === "dark";
+
+  root.classList.toggle("dark", isDark);
+  body.classList.toggle("dark", isDark);
+  body.classList.toggle("light", !isDark);
+
+  lightModeBtn.classList.toggle("theme-btn-active", !isDark);
+  darkModeBtn.classList.toggle("theme-btn-active", isDark);
 }
 
 function initializeTheme() {
@@ -85,11 +84,10 @@ function initializeTheme() {
   applyTheme(saved || (systemDark ? "dark" : "light"));
 }
 
-function toggleTheme() {
-  const isDark = document.documentElement.classList.contains("dark");
-  const nextTheme = isDark ? "light" : "dark";
-  localStorage.setItem(THEME_KEY, nextTheme);
-  applyTheme(nextTheme);
+function setTheme(theme) {
+  const resolvedTheme = theme === "dark" ? "dark" : "light";
+  localStorage.setItem(THEME_KEY, resolvedTheme);
+  applyTheme(resolvedTheme);
 }
 
 function animateView(viewName) {
@@ -496,7 +494,8 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
   });
 });
 
-themeToggleBtn.addEventListener("click", toggleTheme);
+lightModeBtn.addEventListener("click", () => setTheme("light"));
+darkModeBtn.addEventListener("click", () => setTheme("dark"));
 document.getElementById("year").textContent = new Date().getFullYear();
 
 initializeTheme();
