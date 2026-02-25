@@ -35,11 +35,170 @@ let activeSearch = { admin: null, user: null };
 let currentSection = "dashboard";
 let previousRoute = null;
 
+const LOCAL_FALLBACK_KEY = "docu-local-fallback-v1";
+let useLocalFallback = false;
+let fallbackWarned = false;
+
+function fallbackSeed() {
+  return {
+    users: [
+      { id: crypto.randomUUID(), name: "Default Admin", userId: "admin", password: "admin123", role: "admin" },
+      { id: crypto.randomUUID(), name: "Sample User", userId: "user1", password: "user123", role: "user" }
+    ],
+    documents: []
+  };
+}
+
+function getFallbackStore() {
+  const raw = localStorage.getItem(LOCAL_FALLBACK_KEY);
+  if (!raw) {
+    const seeded = fallbackSeed();
+    localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const seeded = fallbackSeed();
+    localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(seeded));
+    return seeded;
+  }
+}
+
+function setFallbackStore(data) {
+  localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(data));
+}
+
+function parsePath(path) {
+  const u = new URL(path, window.location.origin);
+  return { pathname: u.pathname, search: u.searchParams };
+}
+
+function fakeEmbedding(text) {
+  const v = new Array(64).fill(0);
+  for (let i = 0; i < text.length; i++) {
+    v[i % 64] += text.charCodeAt(i) / 255;
+  }
+  return v;
+}
+
+function cosine(a = [], b = []) {
+  if (!a.length || !b.length || a.length !== b.length) return -1;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (!na || !nb) return -1;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+async function localApi(path, options = {}) {
+  const { pathname, search } = parsePath(path);
+  const method = (options.method || "GET").toUpperCase();
+  const body = options.body ? JSON.parse(options.body) : {};
+  const db = getFallbackStore();
+
+  if (pathname === "/api/login" && method === "POST") {
+    const user = db.users.find((u) => u.userId === body.userId && u.password === body.password) || null;
+    return { user };
+  }
+
+  if (pathname === "/api/users" && method === "GET") return { users: db.users };
+  if (pathname === "/api/users" && method === "POST") {
+    const user = { id: crypto.randomUUID(), ...body };
+    db.users.push(user);
+    setFallbackStore(db);
+    return { user };
+  }
+
+  if (pathname.startsWith('/api/users/') && method === 'PUT') {
+    const id = pathname.split('/').pop();
+    db.users = db.users.map((u) => u.id === id ? { ...u, ...body, id } : u);
+    setFallbackStore(db);
+    return { user: db.users.find((u) => u.id === id) || null };
+  }
+
+  if (pathname.startsWith('/api/users/') && method === 'DELETE') {
+    const id = pathname.split('/').pop();
+    db.users = db.users.filter((u) => u.id !== id);
+    db.documents = db.documents.filter((d) => d.ownerId !== id);
+    setFallbackStore(db);
+    return { ok: true };
+  }
+
+  if (pathname === '/api/documents' && method === 'GET') {
+    const ownerId = search.get('ownerId');
+    return { documents: ownerId ? db.documents.filter((d) => d.ownerId === ownerId) : db.documents };
+  }
+
+  if (pathname === '/api/documents' && method === 'POST') {
+    const now = new Date().toISOString();
+    const document = { id: crypto.randomUUID(), ...body, createdAt: now, updatedAt: now };
+    db.documents.push(document);
+    setFallbackStore(db);
+    return { document };
+  }
+
+  if (pathname.startsWith('/api/documents/') && method === 'PUT') {
+    const id = pathname.split('/').pop();
+    db.documents = db.documents.map((d) => d.id === id ? { ...d, ...body, id, updatedAt: new Date().toISOString() } : d);
+    setFallbackStore(db);
+    return { document: db.documents.find((d) => d.id === id) || null };
+  }
+
+  if (pathname.startsWith('/api/documents/') && method === 'DELETE') {
+    const id = pathname.split('/').pop();
+    db.documents = db.documents.filter((d) => d.id !== id);
+    setFallbackStore(db);
+    return { ok: true };
+  }
+
+  if (pathname === '/api/embeddings' && method === 'POST') {
+    const summary = String(body.summary || '').trim();
+    if (!summary) throw new Error('summary is required.');
+    return { embedding: fakeEmbedding(summary), model: 'local-fallback-embedding' };
+  }
+
+  if (pathname === '/api/search' && method === 'POST') {
+    const query = String(body.query || '').trim();
+    if (!query) throw new Error('query is required.');
+    const qv = fakeEmbedding(query);
+    const docs = body.role === 'admin' ? db.documents : db.documents.filter((d) => d.ownerId === body.ownerId);
+    const scored = docs.map((d) => ({
+      ...d,
+      score: cosine(qv, d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''))
+    })).sort((a, b) => b.score - a.score);
+    return { documents: scored };
+  }
+
+  throw new Error(`Unsupported local API route: ${method} ${pathname}`);
+}
+
 async function api(path, options = {}) {
-  const res = await fetch(path, options);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
+  if (useLocalFallback) return localApi(path, options);
+
+  try {
+    const res = await fetch(path, options);
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text || '{}');
+    } catch {
+      throw new Error('API returned non-JSON response.');
+    }
+
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    return data;
+  } catch (error) {
+    useLocalFallback = true;
+    if (!fallbackWarned) {
+      fallbackWarned = true;
+      alert('Backend API is unavailable on this host. Running in local fallback mode (data saved in browser).');
+    }
+    return localApi(path, options);
+  }
 }
 
 function getCurrentUser() {
