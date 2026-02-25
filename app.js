@@ -94,6 +94,24 @@ function animateView(viewName) {
   view.classList.add("animate-fadeUp");
 }
 
+async function generateSummaryEmbedding(summary) {
+  const response = await fetch("/api/embeddings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ summary })
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result.error || "Unable to generate summary embedding.");
+  }
+
+  return {
+    vector: result.embedding,
+    model: result.model
+  };
+}
+
 function renderApp() {
   const currentUser = getCurrentUser();
 
@@ -137,7 +155,7 @@ function renderAdminDashboard() {
     const owner = state.users.find((user) => user.id === doc.ownerId);
     row.querySelector(".row-title").textContent = doc.title;
     row.querySelector(".row-meta").textContent = `Owner: ${owner?.name || "Unknown"} (${owner?.userId || "n/a"})`;
-    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}`;
+    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}`;
 
     const actions = row.querySelector(".row-actions");
     actions.append(
@@ -177,7 +195,7 @@ function renderUserDashboard() {
     const row = document.getElementById("documentRowTemplate").content.firstElementChild.cloneNode(true);
     row.querySelector(".row-title").textContent = doc.title;
     row.querySelector(".row-meta").textContent = `Last updated: ${new Date(doc.updatedAt).toLocaleString()}`;
-    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}`;
+    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}`;
 
     const actions = row.querySelector(".row-actions");
     actions.append(
@@ -310,7 +328,7 @@ document.getElementById("adminCreateDocBtn").addEventListener("click", () => ope
 document.getElementById("userCreateDocBtn").addEventListener("click", () => openDocumentEditor("create"));
 document.getElementById("cancelDocumentBtn").addEventListener("click", () => renderApp());
 
-docForm.addEventListener("submit", (event) => {
+docForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const currentUser = getCurrentUser();
   const title = docForm.title.value.trim();
@@ -322,26 +340,48 @@ docForm.addEventListener("submit", (event) => {
     return;
   }
 
-  if (documentEditorContext.mode === "edit") {
-    state.documents = state.documents.map((doc) => {
-      if (doc.id !== documentEditorContext.documentId) return doc;
-      if (currentUser.role !== "admin" && doc.ownerId !== currentUser.id) return doc;
-      return { ...doc, title, description, summary, updatedAt: new Date().toISOString() };
-    });
-  } else {
-    state.documents.push({
-      id: crypto.randomUUID(),
-      ownerId: documentEditorContext.ownerId,
-      title,
-      description,
-      summary,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
-  }
+  const submitButton = docForm.querySelector('button[type="submit"]');
+  const originalLabel = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = "Saving + Embedding...";
 
-  saveState();
-  renderApp();
+  try {
+    const summaryEmbedding = await generateSummaryEmbedding(summary);
+
+    if (documentEditorContext.mode === "edit") {
+      state.documents = state.documents.map((doc) => {
+        if (doc.id !== documentEditorContext.documentId) return doc;
+        if (currentUser.role !== "admin" && doc.ownerId !== currentUser.id) return doc;
+        return {
+          ...doc,
+          title,
+          description,
+          summary,
+          summaryEmbedding,
+          updatedAt: new Date().toISOString()
+        };
+      });
+    } else {
+      state.documents.push({
+        id: crypto.randomUUID(),
+        ownerId: documentEditorContext.ownerId,
+        title,
+        description,
+        summary,
+        summaryEmbedding,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    saveState();
+    renderApp();
+  } catch (error) {
+    alert(`Document could not be saved: ${error.message}`);
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalLabel;
+  }
 });
 
 document.getElementById("adminCreateUserBtn").addEventListener("click", () => openUserEditor("create"));
