@@ -7,6 +7,7 @@ let userEditorContext = { mode: "create", userInternalId: null };
 
 const views = {
   login: document.getElementById("loginView"),
+  signup: document.getElementById("signupView"),
   admin: document.getElementById("adminView"),
   user: document.getElementById("userView"),
   documentEditor: document.getElementById("documentEditorView"),
@@ -14,6 +15,7 @@ const views = {
 };
 
 const loginForm = document.getElementById("loginForm");
+const signupForm = document.getElementById("signupForm");
 const logoutBtn = document.getElementById("logoutBtn");
 const backBtn = document.getElementById("backBtn");
 const adminDocumentList = document.getElementById("adminDocumentList");
@@ -23,6 +25,8 @@ const docForm = document.getElementById("documentForm");
 const userForm = document.getElementById("userForm");
 const lightModeBtn = document.getElementById("lightModeBtn");
 const darkModeBtn = document.getElementById("darkModeBtn");
+const openSignupBtn = document.getElementById("openSignupBtn");
+const backToLoginBtn = document.getElementById("backToLoginBtn");
 const adminActionsCard = document.getElementById("adminActionsCard");
 const adminDocumentsCard = document.getElementById("adminDocumentsCard");
 const adminUsersCard = document.getElementById("adminUsersCard");
@@ -210,6 +214,19 @@ function setVisibleView(viewName) {
   views[viewName].classList.remove("hidden");
 }
 
+function setupPasswordToggles() {
+  document.querySelectorAll('.password-toggle').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.textContent = show ? '🙈' : '👁';
+    });
+  });
+}
+
 function currentVisibleView() {
   return Object.entries(views).find(([, el]) => !el.classList.contains("hidden"))?.[0] || "login";
 }
@@ -333,8 +350,10 @@ async function renderApp() {
   if (!session.userId) {
     logoutBtn.hidden = true;
     backBtn.hidden = true;
-    setVisibleView("login");
-    animateView("login");
+    if (currentVisibleView() !== "signup") {
+      setVisibleView("login");
+      animateView("login");
+    }
     return;
   }
 
@@ -538,6 +557,51 @@ loginForm.addEventListener("submit", async (event) => {
   }
 });
 
+
+openSignupBtn.addEventListener('click', () => {
+  setVisibleView('signup');
+  animateView('signup');
+});
+
+backToLoginBtn.addEventListener('click', () => {
+  signupForm.reset();
+  setVisibleView('login');
+  animateView('login');
+});
+
+signupForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const formData = new FormData(signupForm);
+  const name = String(formData.get('name') || '').trim();
+  const userId = String(formData.get('userId') || '').trim();
+  const password = String(formData.get('password') || '');
+  const confirmPassword = String(formData.get('confirmPassword') || '');
+
+  if (!name || !userId || !password) {
+    alert('All signup fields are required.');
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    alert('Passwords do not match.');
+    return;
+  }
+
+  try {
+    await api('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, userId, password, role: 'user' })
+    });
+    alert('Signup successful. Please login with your new account.');
+    signupForm.reset();
+    setVisibleView('login');
+    animateView('login');
+  } catch (error) {
+    alert(`Signup failed: ${error.message}`);
+  }
+});
+
 logoutBtn.addEventListener("click", async () => {
   session = { userId: null, role: null, id: null, name: null };
   activeSearch = { admin: null, user: null };
@@ -664,5 +728,6 @@ lightModeBtn.addEventListener("click", () => setTheme("light"));
 darkModeBtn.addEventListener("click", () => setTheme("dark"));
 document.getElementById("year").textContent = new Date().getFullYear();
 
+setupPasswordToggles();
 initializeTheme();
 renderApp();
