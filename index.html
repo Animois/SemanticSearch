@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Management Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <h1>Document Management Portal</h1>
+      <button id="logoutBtn" class="ghost" hidden>Logout</button>
+    </header>
+
+    <main>
+      <section id="loginView" class="card active">
+        <h2>Login</h2>
+        <p class="muted">Use your user ID and password to continue.</p>
+        <form id="loginForm">
+          <label for="loginUserId">User ID</label>
+          <input id="loginUserId" name="userId" required />
+
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" name="password" type="password" required />
+
+          <button type="submit">Login</button>
+        </form>
+      </section>
+
+      <section id="adminView" class="hidden">
+        <div class="grid two-col">
+          <article class="card">
+            <div class="section-header">
+              <h2>All Documents</h2>
+              <button id="adminCreateDocBtn">Create New Document</button>
+            </div>
+            <div id="adminDocumentList" class="list"></div>
+          </article>
+
+          <article class="card">
+            <div class="section-header">
+              <h2>User Management</h2>
+              <button id="adminCreateUserBtn" class="secondary">Create New User</button>
+            </div>
+            <div id="adminUserList" class="list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="userView" class="hidden">
+        <article class="card">
+          <div class="section-header">
+            <h2>My Documents</h2>
+            <button id="userCreateDocBtn">Create New Document</button>
+          </div>
+          <div id="userDocumentList" class="list"></div>
+        </article>
+      </section>
+
+      <section id="documentEditorView" class="card hidden">
+        <h2 id="documentEditorTitle">Create Document</h2>
+        <p class="muted" id="documentOwnerLabel"></p>
+        <form id="documentForm">
+          <label for="documentTitle">Document Title</label>
+          <input id="documentTitle" name="title" required />
+
+          <label for="documentDescription">Document Description</label>
+          <textarea id="documentDescription" name="description" required></textarea>
+
+          <label for="documentSummary">Document Summary</label>
+          <textarea id="documentSummary" name="summary" required></textarea>
+
+          <div class="actions">
+            <button type="submit">Save Document</button>
+            <button type="button" id="cancelDocumentBtn" class="secondary">Cancel</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="userEditorView" class="card hidden">
+        <h2 id="userEditorTitle">Create User</h2>
+        <form id="userForm">
+          <label for="userFormName">Display Name</label>
+          <input id="userFormName" name="name" required />
+
+          <label for="userFormUserId">User ID</label>
+          <input id="userFormUserId" name="userId" required />
+
+          <label for="userFormPassword">Password</label>
+          <input id="userFormPassword" name="password" type="password" required />
+
+          <label for="userFormRole">Role</label>
+          <select id="userFormRole" name="role" required>
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+
+          <div class="actions">
+            <button type="submit">Save User</button>
+            <button type="button" id="cancelUserBtn" class="secondary">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <template id="documentRowTemplate">
+    <div class="list-row">
+      <div>
+        <h3 class="row-title"></h3>
+        <p class="row-meta"></p>
+        <p class="row-body"></p>
+      </div>
+      <div class="row-actions"></div>
+    </div>
+  </template>
+
+  <template id="userRowTemplate">
+    <div class="list-row">
+      <div>
+        <h3 class="row-title"></h3>
+        <p class="row-meta"></p>
+      </div>
+      <div class="row-actions"></div>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
