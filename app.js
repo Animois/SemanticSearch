@@ -1,16 +1,7 @@
-const STORAGE_KEY = "doc-mgmt-state-v2";
 const THEME_KEY = "doc-mgmt-theme";
 
-const initialState = {
-  users: [
-    { id: crypto.randomUUID(), name: "Default Admin", userId: "admin", password: "admin123", role: "admin" },
-    { id: crypto.randomUUID(), name: "Sample User", userId: "user1", password: "user123", role: "user" }
-  ],
-  documents: []
-};
-
-let state = loadState();
-let session = { userId: null, role: null };
+let state = { users: [], documents: [] };
+let session = { userId: null, role: null, id: null, name: null };
 let documentEditorContext = { mode: "create", documentId: null, ownerId: null };
 let userEditorContext = { mode: "create", userInternalId: null };
 
@@ -37,23 +28,15 @@ const adminUsersCard = document.getElementById("adminUsersCard");
 const userActionsCard = document.getElementById("userActionsCard");
 const userDocumentsCard = document.getElementById("userDocumentsCard");
 
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
-    return structuredClone(initialState);
-  }
+const adminSearchInput = document.getElementById("adminSearchInput");
+const userSearchInput = document.getElementById("userSearchInput");
+let activeSearch = { admin: null, user: null };
 
-  try {
-    return JSON.parse(saved);
-  } catch {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialState));
-    return structuredClone(initialState);
-  }
-}
-
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function api(path, options = {}) {
+  const res = await fetch(path, options);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
 }
 
 function getCurrentUser() {
@@ -98,78 +81,62 @@ function animateView(viewName) {
 }
 
 async function generateSummaryEmbedding(summary) {
-  const response = await fetch("/api/embeddings", {
+  const result = await api("/api/embeddings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ summary })
   });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(result.error || "Unable to generate summary embedding.");
-  }
-
-  return {
-    vector: result.embedding,
-    model: result.model
-  };
+  return { vector: result.embedding, model: result.model };
 }
 
 function setMenuActive(target) {
   document.querySelectorAll("[data-nav]").forEach((btn) => {
-    const isActive = btn.dataset.nav === target;
-    btn.classList.toggle("menu-link-active", isActive);
+    btn.classList.toggle("menu-link-active", btn.dataset.nav === target);
   });
 }
 
-function hideCard(card) {
-  if (card) card.classList.add("hidden");
-}
-
-function showCard(card) {
-  if (card) card.classList.remove("hidden");
-}
+function hideCard(card) { if (card) card.classList.add("hidden"); }
+function showCard(card) { if (card) card.classList.remove("hidden"); }
 
 function applyAdminMenuSection(target) {
   showCard(adminActionsCard);
   showCard(adminDocumentsCard);
   showCard(adminUsersCard);
-
-  if (target === "documents") {
-    hideCard(adminUsersCard);
-  } else if (target === "users") {
-    hideCard(adminDocumentsCard);
-  }
+  if (target === "documents") hideCard(adminUsersCard);
+  else if (target === "users") hideCard(adminDocumentsCard);
 }
 
 function applyUserMenuSection(target) {
   showCard(userActionsCard);
   showCard(userDocumentsCard);
-
-  if (target === "dashboard") return;
-
-  if (target === "documents") {
-    showCard(userDocumentsCard);
-    hideCard(userActionsCard);
-    return;
-  }
-
-  alert("Users page is available only for admins.");
+  if (target === "documents") hideCard(userActionsCard);
+  if (target === "users") alert("Users page is available only for admins.");
 }
 
-function renderApp() {
-  const currentUser = getCurrentUser();
+async function refreshState() {
+  if (!session.userId) return;
+  const current = session.role === "admin" ? await api("/api/documents") : await api(`/api/documents?ownerId=${session.id}`);
+  state.documents = current.documents;
+  if (session.role === "admin") {
+    state.users = (await api("/api/users")).users;
+  } else {
+    const me = await api("/api/users");
+    state.users = me.users;
+  }
+}
 
-  if (!currentUser) {
-    session = { userId: null, role: null };
+async function renderApp() {
+  if (!session.userId) {
     logoutBtn.hidden = true;
     setVisibleView("login");
     animateView("login");
     return;
   }
 
+  await refreshState();
   logoutBtn.hidden = false;
-  if (currentUser.role === "admin") {
+
+  if (session.role === "admin") {
     renderAdminDashboard();
     setMenuActive("dashboard");
     applyAdminMenuSection("dashboard");
@@ -192,19 +159,19 @@ function emptyMessage(text) {
 function renderAdminDashboard() {
   adminDocumentList.innerHTML = "";
   adminUserList.innerHTML = "";
-  document.getElementById("adminDocCount").textContent = state.documents.length;
+
+  const docs = activeSearch.admin || state.documents;
+  document.getElementById("adminDocCount").textContent = docs.length;
   document.getElementById("adminUserCount").textContent = state.users.length;
 
-  if (!state.documents.length) {
-    adminDocumentList.innerHTML = emptyMessage("No documents found yet.");
-  }
+  if (!docs.length) adminDocumentList.innerHTML = emptyMessage("No documents found yet.");
 
-  state.documents.forEach((doc) => {
+  docs.forEach((doc) => {
     const row = document.getElementById("documentRowTemplate").content.firstElementChild.cloneNode(true);
     const owner = state.users.find((user) => user.id === doc.ownerId);
     row.querySelector(".row-title").textContent = doc.title;
     row.querySelector(".row-meta").textContent = `Owner: ${owner?.name || "Unknown"} (${owner?.userId || "n/a"})`;
-    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}`;
+    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}${doc.score != null ? `\nRelevance: ${doc.score.toFixed(3)}` : ''}`;
 
     const actions = row.querySelector(".row-actions");
     actions.append(
@@ -218,21 +185,16 @@ function renderAdminDashboard() {
     const row = document.getElementById("userRowTemplate").content.firstElementChild.cloneNode(true);
     row.querySelector(".row-title").textContent = `${user.name} (${user.userId})`;
     row.querySelector(".row-meta").textContent = `Role: ${user.role}`;
-
     const actions = row.querySelector(".row-actions");
     actions.append(createActionButton("Edit", false, () => openUserEditor("edit", user.id)));
-    if (user.role !== "admin") {
-      actions.append(createActionButton("Delete", true, () => deleteUser(user.id)));
-    }
-
+    if (user.role !== "admin") actions.append(createActionButton("Delete", true, () => deleteUser(user.id)));
     adminUserList.appendChild(row);
   });
 }
 
 function renderUserDashboard() {
   userDocumentList.innerHTML = "";
-  const currentUser = getCurrentUser();
-  const docs = state.documents.filter((doc) => doc.ownerId === currentUser.id);
+  const docs = activeSearch.user || state.documents;
   document.getElementById("userDocCount").textContent = docs.length;
 
   if (!docs.length) {
@@ -244,7 +206,7 @@ function renderUserDashboard() {
     const row = document.getElementById("documentRowTemplate").content.firstElementChild.cloneNode(true);
     row.querySelector(".row-title").textContent = doc.title;
     row.querySelector(".row-meta").textContent = `Last updated: ${new Date(doc.updatedAt).toLocaleString()}`;
-    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}`;
+    row.querySelector(".row-body").textContent = `Description: ${doc.description}\nSummary: ${doc.summary}\nEmbedding size: ${doc.summaryEmbedding?.vector?.length || 0}${doc.score != null ? `\nRelevance: ${doc.score.toFixed(3)}` : ''}`;
 
     const actions = row.querySelector(".row-actions");
     actions.append(
@@ -260,31 +222,24 @@ function createActionButton(label, isDelete, onClick) {
   const button = document.createElement("button");
   button.textContent = label;
   button.type = "button";
-  if (isDelete) {
-    button.classList.add("delete");
-  }
+  if (isDelete) button.classList.add("delete");
   button.addEventListener("click", onClick);
   return button;
 }
 
 function openDocumentEditor(mode, documentId = null) {
-  const currentUser = getCurrentUser();
-  documentEditorContext = { mode, documentId, ownerId: currentUser.id };
+  documentEditorContext = { mode, documentId, ownerId: session.id };
   const editorTitle = document.getElementById("documentEditorTitle");
   const ownerLabel = document.getElementById("documentOwnerLabel");
 
   if (mode === "edit") {
     const doc = state.documents.find((item) => item.id === documentId);
     if (!doc) return;
-
-    if (currentUser.role !== "admin" && doc.ownerId !== currentUser.id) {
-      alert("You can edit only your own documents.");
-      return;
-    }
+    if (session.role !== "admin" && doc.ownerId !== session.id) return alert("You can edit only your own documents.");
 
     documentEditorContext.ownerId = doc.ownerId;
     editorTitle.textContent = "Edit Document";
-    ownerLabel.textContent = currentUser.role === "admin"
+    ownerLabel.textContent = session.role === "admin"
       ? `Editing owner: ${state.users.find((u) => u.id === doc.ownerId)?.name || "Unknown"}`
       : "Editing your document";
 
@@ -293,9 +248,7 @@ function openDocumentEditor(mode, documentId = null) {
     docForm.summary.value = doc.summary;
   } else {
     editorTitle.textContent = "Create Document";
-    ownerLabel.textContent = currentUser.role === "admin"
-      ? "New document will be assigned to your account."
-      : "Create a new document for your account.";
+    ownerLabel.textContent = session.role === "admin" ? "New document will be assigned to your account." : "Create a new document for your account.";
     docForm.reset();
   }
 
@@ -310,7 +263,6 @@ function openUserEditor(mode, userInternalId = null) {
   if (mode === "edit") {
     const user = state.users.find((item) => item.id === userInternalId);
     if (!user) return;
-
     title.textContent = "Edit User";
     userForm.name.value = user.name;
     userForm.userId.value = user.userId;
@@ -326,68 +278,69 @@ function openUserEditor(mode, userInternalId = null) {
   animateView("userEditor");
 }
 
-function deleteDocument(documentId, isAdminFlow) {
-  const currentUser = getCurrentUser();
+async function deleteDocument(documentId, isAdminFlow) {
   const doc = state.documents.find((item) => item.id === documentId);
   if (!doc) return;
+  if (!isAdminFlow && doc.ownerId !== session.id) return alert("You can only delete your own document.");
 
-  if (!isAdminFlow && doc.ownerId !== currentUser.id) {
-    alert("You can only delete your own document.");
-    return;
-  }
-
-  state.documents = state.documents.filter((item) => item.id !== documentId);
-  saveState();
-  renderApp();
+  await api(`/api/documents/${documentId}`, { method: "DELETE" });
+  await renderApp();
 }
 
-function deleteUser(userInternalId) {
-  const user = state.users.find((item) => item.id === userInternalId);
-  if (!user) return;
-
-  state.users = state.users.filter((item) => item.id !== userInternalId);
-  state.documents = state.documents.filter((doc) => doc.ownerId !== userInternalId);
-  saveState();
-  renderApp();
+async function deleteUser(userInternalId) {
+  await api(`/api/users/${userInternalId}`, { method: "DELETE" });
+  await renderApp();
 }
 
-loginForm.addEventListener("submit", (event) => {
+async function semanticSearch(query) {
+  const result = await api('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, role: session.role, ownerId: session.id })
+  });
+  return result.documents || [];
+}
+
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(loginForm);
   const userId = formData.get("userId").toString().trim();
   const password = formData.get("password").toString();
 
-  const user = state.users.find((u) => u.userId === userId && u.password === password);
-  if (!user) {
-    alert("Invalid credentials.");
-    return;
-  }
+  try {
+    const { user } = await api('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password })
+    });
+    if (!user) return alert('Invalid credentials.');
 
-  session = { userId: user.userId, role: user.role };
-  loginForm.reset();
-  renderApp();
+    session = { userId: user.userId, role: user.role, id: user.id, name: user.name };
+    loginForm.reset();
+    activeSearch = { admin: null, user: null };
+    await renderApp();
+  } catch (e) {
+    alert(e.message);
+  }
 });
 
-logoutBtn.addEventListener("click", () => {
-  session = { userId: null, role: null };
-  renderApp();
+logoutBtn.addEventListener("click", async () => {
+  session = { userId: null, role: null, id: null, name: null };
+  activeSearch = { admin: null, user: null };
+  await renderApp();
 });
 
 document.getElementById("adminCreateDocBtn").addEventListener("click", () => openDocumentEditor("create"));
 document.getElementById("userCreateDocBtn").addEventListener("click", () => openDocumentEditor("create"));
-document.getElementById("cancelDocumentBtn").addEventListener("click", () => renderApp());
+document.getElementById("cancelDocumentBtn").addEventListener("click", async () => renderApp());
 
 docForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const currentUser = getCurrentUser();
   const title = docForm.title.value.trim();
   const description = docForm.description.value.trim();
   const summary = docForm.summary.value.trim();
 
-  if (!title || !description || !summary) {
-    alert("All document fields are required.");
-    return;
-  }
+  if (!title || !description || !summary) return alert("All document fields are required.");
 
   const submitButton = docForm.querySelector('button[type="submit"]');
   const originalLabel = submitButton.textContent;
@@ -396,35 +349,18 @@ docForm.addEventListener("submit", async (event) => {
 
   try {
     const summaryEmbedding = await generateSummaryEmbedding(summary);
-
     if (documentEditorContext.mode === "edit") {
-      state.documents = state.documents.map((doc) => {
-        if (doc.id !== documentEditorContext.documentId) return doc;
-        if (currentUser.role !== "admin" && doc.ownerId !== currentUser.id) return doc;
-        return {
-          ...doc,
-          title,
-          description,
-          summary,
-          summaryEmbedding,
-          updatedAt: new Date().toISOString()
-        };
+      await api(`/api/documents/${documentEditorContext.documentId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, summary, summaryEmbedding })
       });
     } else {
-      state.documents.push({
-        id: crypto.randomUUID(),
-        ownerId: documentEditorContext.ownerId,
-        title,
-        description,
-        summary,
-        summaryEmbedding,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+      await api('/api/documents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId: documentEditorContext.ownerId, title, description, summary, summaryEmbedding })
       });
     }
-
-    saveState();
-    renderApp();
+    await renderApp();
   } catch (error) {
     alert(`Document could not be saved: ${error.message}`);
   } finally {
@@ -434,52 +370,42 @@ docForm.addEventListener("submit", async (event) => {
 });
 
 document.getElementById("adminCreateUserBtn").addEventListener("click", () => openUserEditor("create"));
-document.getElementById("cancelUserBtn").addEventListener("click", () => renderApp());
+document.getElementById("cancelUserBtn").addEventListener("click", async () => renderApp());
 
-userForm.addEventListener("submit", (event) => {
+userForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = userForm.name.value.trim();
   const userId = userForm.userId.value.trim();
   const password = userForm.password.value;
   const role = userForm.role.value;
 
-  if (!name || !userId || !password || !role) {
-    alert("All user fields are required.");
-    return;
-  }
+  if (!name || !userId || !password || !role) return alert("All user fields are required.");
 
-  const conflict = state.users.find((user) => user.userId === userId && user.id !== userEditorContext.userInternalId);
-  if (conflict) {
-    alert("User ID already exists.");
-    return;
-  }
-
-  if (userEditorContext.mode === "edit") {
-    state.users = state.users.map((user) => user.id === userEditorContext.userInternalId
-      ? { ...user, name, userId, password, role }
-      : user
-    );
-
-    if (session.userId && state.users.every((u) => u.userId !== session.userId)) {
-      session = { userId: null, role: null };
+  try {
+    if (userEditorContext.mode === "edit") {
+      await api(`/api/users/${userEditorContext.userInternalId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, userId, password, role })
+      });
+    } else {
+      await api('/api/users', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, userId, password, role })
+      });
     }
-  } else {
-    state.users.push({ id: crypto.randomUUID(), name, userId, password, role });
+    await renderApp();
+  } catch (e) {
+    alert(e.message);
   }
-
-  saveState();
-  renderApp();
 });
 
 document.querySelectorAll("[data-nav]").forEach((navBtn) => {
-  navBtn.addEventListener("click", () => {
-    const currentUser = getCurrentUser();
-    if (!currentUser) return;
-
+  navBtn.addEventListener("click", async () => {
+    if (!session.userId) return;
     const target = navBtn.dataset.nav || "dashboard";
     setMenuActive(target);
 
-    if (currentUser.role === "admin") {
+    if (session.role === "admin") {
       renderAdminDashboard();
       applyAdminMenuSection(target);
       setVisibleView("admin");
@@ -492,6 +418,22 @@ document.querySelectorAll("[data-nav]").forEach((navBtn) => {
     setVisibleView("user");
     animateView("user");
   });
+});
+
+adminSearchInput?.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const q = adminSearchInput.value.trim();
+  if (!q) { activeSearch.admin = null; return renderAdminDashboard(); }
+  activeSearch.admin = await semanticSearch(q);
+  renderAdminDashboard();
+});
+
+userSearchInput?.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Enter') return;
+  const q = userSearchInput.value.trim();
+  if (!q) { activeSearch.user = null; return renderUserDashboard(); }
+  activeSearch.user = await semanticSearch(q);
+  renderUserDashboard();
 });
 
 lightModeBtn.addEventListener("click", () => setTheme("light"));
