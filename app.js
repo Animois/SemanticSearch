@@ -558,20 +558,21 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 
-openSignupBtn.addEventListener('click', () => {
+openSignupBtn?.addEventListener('click', () => {
+  if (!views.signup) return;
   setVisibleView('signup');
   animateView('signup');
 });
 
-backToLoginBtn.addEventListener('click', () => {
-  signupForm.reset();
+backToLoginBtn?.addEventListener('click', () => {
+  signupForm?.reset();
   setVisibleView('login');
   animateView('login');
 });
 
-signupForm.addEventListener('submit', async (event) => {
+signupForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const formData = new FormData(signupForm);
+  const formData = new FormData(signupForm || undefined);
   const name = String(formData.get('name') || '').trim();
   const userId = String(formData.get('userId') || '').trim();
   const password = String(formData.get('password') || '');
@@ -594,7 +595,7 @@ signupForm.addEventListener('submit', async (event) => {
       body: JSON.stringify({ name, userId, password, role: 'user' })
     });
     alert('Signup successful. Please login with your new account.');
-    signupForm.reset();
+    signupForm?.reset();
     setVisibleView('login');
     animateView('login');
   } catch (error) {
@@ -727,6 +728,10 @@ backBtn.addEventListener("click", () => {
 lightModeBtn.addEventListener("click", () => setTheme("light"));
 darkModeBtn.addEventListener("click", () => setTheme("dark"));
 document.getElementById("year").textContent = new Date().getFullYear();
+
+if (!openSignupBtn || !signupForm || !views.signup) {
+  console.warn('Signup UI elements are missing. Ensure latest index.html is deployed with app.js.');
+}
 
 setupPasswordToggles();
 initializeTheme();
