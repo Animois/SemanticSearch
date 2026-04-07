@@ -52,6 +52,7 @@ let previousRoute = null;
 const LOCAL_FALLBACK_KEY = "docu-local-fallback-v1";
 let useLocalFallback = false;
 let fallbackWarned = false;
+let localProgrammingDataset = null;
 
 function fallbackSeed() {
   return {
@@ -94,6 +95,21 @@ function fakeEmbedding(text) {
     v[i % 64] += text.charCodeAt(i) / 255;
   }
   return v;
+}
+
+
+async function getLocalProgrammingDataset() {
+  if (localProgrammingDataset) return localProgrammingDataset;
+  try {
+    const res = await fetch('data/stackoverflow_3000.json');
+    const text = await res.text();
+    const raw = JSON.parse(text || '[]');
+    localProgrammingDataset = raw.filter((r) => Array.isArray(r.embedding)).slice(0, 3000);
+    return localProgrammingDataset;
+  } catch {
+    localProgrammingDataset = [];
+    return localProgrammingDataset;
+  }
 }
 
 function cosine(a = [], b = []) {
@@ -191,16 +207,25 @@ async function localApi(path, options = {}) {
   if (pathname === '/api/programming-search' && method === 'POST') {
     const query = String(body.query || '').trim();
     if (!query) throw new Error('query is required.');
+
+    const dataset = await getLocalProgrammingDataset();
+    if (!dataset.length) {
+      throw new Error('Local dataset is empty. Populate data/stackoverflow_3000.json.');
+    }
+
     const qv = fakeEmbedding(query);
-    const rows = db.documents.map((d) => ({
-      id: d.id,
-      question: d.title,
-      answer: d.description || d.summary || '',
-      tags: [],
-      embedding: d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''),
-      score: cosine(qv, d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''))
-    })).sort((a,b)=>b.score-a.score).slice(0,10);
-    return { results: rows, datasetSize: db.documents.length };
+    const rows = dataset.map((row) => {
+      const vec = row.embedding || [];
+      return {
+        id: row.id,
+        question: row.question || '',
+        answer: row.answer || '',
+        tags: row.tags || [],
+        score: cosine(qv, vec.length ? vec : fakeEmbedding(row.question || row.answer || ''))
+      };
+    }).filter((r) => r.score >= 0).sort((a,b)=>b.score-a.score).slice(0,10);
+
+    return { results: rows, datasetSize: dataset.length };
   }
 
   throw new Error(`Unsupported local API route: ${method} ${pathname}`);
