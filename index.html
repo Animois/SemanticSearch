@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocuSphere Portal</title>
+  <script>
+    tailwind = {
+      config: {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: '#eef2ff',
+                100: '#e0e7ff',
+                500: '#6366f1',
+                600: '#4f46e5',
+                700: '#4338ca'
+              }
+            },
+            boxShadow: {
+              soft: '0 12px 30px -12px rgba(99, 102, 241, 0.35)'
+            },
+            keyframes: {
+              fadeUp: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' }
+              },
+              pulseGlow: {
+                '0%, 100%': { boxShadow: '0 0 0 0 rgba(99,102,241,0.45)' },
+                '70%': { boxShadow: '0 0 0 10px rgba(99,102,241,0)' }
+              }
+            },
+            animation: {
+              fadeUp: 'fadeUp 420ms ease-out',
+              pulseGlow: 'pulseGlow 1.8s infinite'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="h-full bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-300">
+  <div class="min-h-full flex flex-col">
+    <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-brand-600 to-fuchsia-600 text-white grid place-content-center font-bold shadow-soft">D</div>
+            <div>
+              <p class="font-semibold leading-tight">DocuSphere</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-tight">Smart Document Workspace</p>
+            </div>
+          </div>
+
+          <nav class="hidden md:flex items-center gap-2 text-sm">
+            <button type="button" class="menu-link" data-nav="dashboard">Dashboard</button>
+            <button type="button" class="menu-link" data-nav="documents">Documents</button>
+            <button type="button" class="menu-link" data-nav="users">Users</button>
+          </nav>
+
+          <div class="flex items-center gap-2">
+            <button id="backBtn" type="button" hidden class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition">← Back</button>
+            <div class="inline-flex rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800">
+              <button id="lightModeBtn" type="button" class="theme-btn">Light</button>
+              <button id="darkModeBtn" type="button" class="theme-btn">Dark</button>
+            </div>
+            <button id="logoutBtn" type="button" hidden class="rounded-xl bg-slate-900 text-white px-3 py-2 text-sm font-semibold hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white transition">Logout</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
+      <section id="loginView" class="mx-auto max-w-md animate-fadeUp">
+        <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <h1 class="text-2xl font-bold">Welcome back</h1>
+          <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Sign in with your user ID and password.</p>
+          <form id="loginForm" class="mt-6 space-y-4">
+            <div>
+              <label for="loginUserId" class="label">User ID</label>
+              <input id="loginUserId" name="userId" class="input" required />
+            </div>
+            <div>
+              <label for="loginPassword" class="label">Password</label>
+              <div class="password-wrap">
+                <input id="loginPassword" name="password" type="password" class="input pr-12" required />
+                <button type="button" class="password-toggle" data-target="loginPassword">👁</button>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary animate-pulseGlow">Login</button>
+          </form>
+          <button id="openSignupBtn" type="button" class="btn-secondary mt-3">Sign Up</button>
+          <div class="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            Default: admin/admin123 or user1/user123
+          </div>
+
+        </div>
+      </section>
+
+      <section id="signupView" class="hidden mx-auto max-w-md animate-fadeUp">
+        <div class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <h1 class="text-2xl font-bold">Create account</h1>
+          <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Sign up as a new user.</p>
+          <form id="signupForm" class="mt-6 space-y-4">
+            <div>
+              <label for="signupName" class="label">Display Name</label>
+              <input id="signupName" name="name" class="input" required />
+            </div>
+            <div>
+              <label for="signupUserId" class="label">User ID</label>
+              <input id="signupUserId" name="userId" class="input" required />
+            </div>
+            <div>
+              <label for="signupPassword" class="label">Password</label>
+              <div class="password-wrap">
+                <input id="signupPassword" name="password" type="password" class="input pr-12" required />
+                <button type="button" class="password-toggle" data-target="signupPassword">👁</button>
+              </div>
+            </div>
+            <div>
+              <label for="signupConfirmPassword" class="label">Confirm Password</label>
+              <div class="password-wrap">
+                <input id="signupConfirmPassword" name="confirmPassword" type="password" class="input pr-12" required />
+                <button type="button" class="password-toggle" data-target="signupConfirmPassword">👁</button>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary">Create Account</button>
+          </form>
+          <button id="backToLoginBtn" type="button" class="btn-secondary mt-3">Back to Login</button>
+        </div>
+      </section>
+
+      <section id="adminView" class="hidden space-y-6 animate-fadeUp">
+        <div class="grid gap-6 xl:grid-cols-12">
+          <aside id="adminActionsCard" class="xl:col-span-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 class="text-lg font-semibold">Admin Actions</h2>
+            <div class="mt-4 space-y-2">
+              <button id="adminCreateDocBtn" class="btn-primary">+ Create Document</button>
+              <button id="adminCreateUserBtn" class="btn-secondary">+ Create User</button>
+            </div>
+            <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">Manage all documents and users from one place.</p>
+          </aside>
+
+          <article id="adminDocumentsCard" class="xl:col-span-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="section-header">
+              <h2 class="text-lg font-semibold">All Documents</h2>
+              <span id="adminDocCount" class="badge"></span>
+            </div>
+                        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+              <h3 class="text-lg font-semibold">Programming Semantic Search</h3>
+              <textarea id="adminProgrammingQuery" class="input mt-2 min-h-[110px]" placeholder="Ask: How to do binary search in cpp"></textarea>
+              <button id="adminProgrammingSearchBtn" type="button" class="btn-primary mt-3">Search Dataset</button>
+              <div id="adminProgrammingSearchMeta" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></div>
+              <div id="adminProgrammingSearchResults" class="mt-3 space-y-3"></div>
+            </div>
+            <input id="adminSearchInput" class="input mt-3" placeholder="Semantic search documents (press Enter)" />
+            <div id="adminDocumentList" class="mt-4 space-y-3"></div>
+          </article>
+
+          <article id="adminUsersCard" class="xl:col-span-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="section-header">
+              <h2 class="text-lg font-semibold">Users</h2>
+              <span id="adminUserCount" class="badge"></span>
+            </div>
+            <div id="adminUserList" class="mt-4 space-y-3"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="userView" class="hidden space-y-6 animate-fadeUp">
+        <div class="grid gap-6 lg:grid-cols-12">
+          <aside id="userActionsCard" class="lg:col-span-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h2 class="text-lg font-semibold">Quick Actions</h2>
+            <button id="userCreateDocBtn" class="btn-primary mt-4">+ Create Document</button>
+            <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">You can create, edit, and delete your own documents.</p>
+          </aside>
+          <article id="userDocumentsCard" class="lg:col-span-9 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="section-header">
+              <h2 class="text-lg font-semibold">My Documents</h2>
+              <span id="userDocCount" class="badge"></span>
+            </div>
+                        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+              <h3 class="text-lg font-semibold">Programming Semantic Search</h3>
+              <textarea id="userProgrammingQuery" class="input mt-2 min-h-[110px]" placeholder="Ask: How to declare array in python"></textarea>
+              <button id="userProgrammingSearchBtn" type="button" class="btn-primary mt-3">Search Dataset</button>
+              <div id="userProgrammingSearchMeta" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></div>
+              <div id="userProgrammingSearchResults" class="mt-3 space-y-3"></div>
+            </div>
+            <input id="userSearchInput" class="input mt-3" placeholder="Semantic search my documents (press Enter)" />
+            <div id="userDocumentList" class="mt-4 space-y-3"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="documentEditorView" class="hidden mx-auto max-w-3xl animate-fadeUp">
+        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <h2 id="documentEditorTitle" class="text-xl font-bold">Create Document</h2>
+          <p id="documentOwnerLabel" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
+          <form id="documentForm" class="mt-5 space-y-4">
+            <div>
+              <label for="documentTitle" class="label">Document Title</label>
+              <input id="documentTitle" name="title" class="input" required />
+            </div>
+            <div>
+              <label for="documentDescription" class="label">Document Description</label>
+              <textarea id="documentDescription" name="description" class="input min-h-[110px]" required></textarea>
+            </div>
+            <div>
+              <label for="documentSummary" class="label">Document Summary</label>
+              <textarea id="documentSummary" name="summary" class="input min-h-[110px]" required></textarea>
+            </div>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button id="cancelDocumentBtn" type="button" class="btn-secondary sm:w-auto">Cancel</button>
+              <button type="submit" class="btn-primary sm:w-auto">Save Document</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="userEditorView" class="hidden mx-auto max-w-2xl animate-fadeUp">
+        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <h2 id="userEditorTitle" class="text-xl font-bold">Create User</h2>
+          <form id="userForm" class="mt-5 space-y-4">
+            <div>
+              <label for="userFormName" class="label">Display Name</label>
+              <input id="userFormName" name="name" class="input" required />
+            </div>
+            <div>
+              <label for="userFormUserId" class="label">User ID</label>
+              <input id="userFormUserId" name="userId" class="input" required />
+            </div>
+            <div>
+              <label for="userFormPassword" class="label">Password</label>
+              <div class="password-wrap">
+                <input id="userFormPassword" name="password" type="password" class="input pr-12" required />
+                <button type="button" class="password-toggle" data-target="userFormPassword">👁</button>
+              </div>
+            </div>
+            <div>
+              <label for="userFormRole" class="label">Role</label>
+              <select id="userFormRole" name="role" class="input" required>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button id="cancelUserBtn" type="button" class="btn-secondary sm:w-auto">Cancel</button>
+              <button type="submit" class="btn-primary sm:w-auto">Save User</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <h3 class="font-semibold">DocuSphere</h3>
+            <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">A modern portal for secure document workflows.</p>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm">Product</h4>
+            <ul class="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+              <li><a class="hover:underline" href="#">Dashboard</a></li>
+              <li><a class="hover:underline" href="#">Documents</a></li>
+              <li><a class="hover:underline" href="#">Users</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm">Company</h4>
+            <ul class="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+              <li><a class="hover:underline" href="#">About</a></li>
+              <li><a class="hover:underline" href="#">Careers</a></li>
+              <li><a class="hover:underline" href="#">Contact</a></li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="font-semibold text-sm">Resources</h4>
+            <ul class="mt-2 space-y-1 text-sm text-slate-500 dark:text-slate-400">
+              <li><a class="hover:underline" href="#">Privacy</a></li>
+              <li><a class="hover:underline" href="#">Terms</a></li>
+              <li><a class="hover:underline" href="#">Help Center</a></li>
+            </ul>
+          </div>
+        </div>
+        <p class="mt-8 text-xs text-slate-500 dark:text-slate-400">© <span id="year"></span> DocuSphere. Crafted with Tailwind CSS and JavaScript.</p>
+      </div>
+    </footer>
+  </div>
+
+  <template id="documentRowTemplate">
+    <div class="doc-row rounded-2xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/70 transition hover:-translate-y-0.5 hover:shadow-md">
+      <div class="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 class="row-title text-base font-semibold"></h3>
+          <p class="row-meta mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+        </div>
+        <div class="row-actions flex items-center gap-2"></div>
+      </div>
+      <p class="row-body mt-3 text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-200"></p>
+    </div>
+  </template>
+
+  <template id="userRowTemplate">
+    <div class="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/70 transition hover:-translate-y-0.5 hover:shadow-md flex items-start justify-between gap-3">
+      <div>
+        <h3 class="row-title text-base font-semibold"></h3>
+        <p class="row-meta mt-1 text-xs text-slate-500 dark:text-slate-400"></p>
+      </div>
+      <div class="row-actions flex gap-2"></div>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
