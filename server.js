@@ -1,11 +1,13 @@
 import { createServer } from 'http';
-import { readFileSync, existsSync, createReadStream } from 'fs';
+import { readFileSync, existsSync, createReadStream, writeFileSync } from 'fs';
 import { extname, join, normalize } from 'path';
 import { spawnSync } from 'child_process';
 
 const root = process.cwd();
 const port = Number(process.env.PORT || 4173);
 const DATASET_PATH = join(root, 'data', 'stackoverflow_3000.json');
+const REMOTE_DATASET = 'MartinElMolon/stackoverflow_preguntas_con_embeddings';
+const REMOTE_ROWS_ENDPOINT = 'https://datasets-server.huggingface.co/rows';
 let qaDatasetCache = null;
 
 function loadEnv() {
@@ -57,14 +59,56 @@ function cosine(a = [], b = []) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-function getQaDataset() {
-  if (qaDatasetCache) return qaDatasetCache;
-  if (!existsSync(DATASET_PATH)) {
-    throw new Error('Dataset file missing. Run: python3 tools/build_stackoverflow_dataset.py');
+
+async function fetchRemoteQaDataset(limit = 3000) {
+  const rows = [];
+  let offset = 0;
+  const chunk = 100;
+
+  while (rows.length < limit) {
+    const params = new URLSearchParams({
+      dataset: REMOTE_DATASET,
+      config: 'default',
+      split: 'train',
+      offset: String(offset),
+      length: String(chunk)
+    });
+
+    const resp = await fetch(`${REMOTE_ROWS_ENDPOINT}?${params.toString()}`);
+    if (!resp.ok) throw new Error(`Remote dataset fetch failed: ${resp.status}`);
+    const payload = await resp.json();
+    const batch = payload.rows || [];
+    if (!batch.length) break;
+
+    for (const entry of batch) {
+      const row = entry.row || {};
+      const embedding = row.embeddings || row.embedding || row.vector;
+      if (!Array.isArray(embedding)) continue;
+      rows.push({
+        id: row.id ?? rows.length,
+        question: row.question || row.pregunta || row.title || row.text || '',
+        answer: row.answer || row.respuesta || row.body || '',
+        tags: Array.isArray(row.tags) ? row.tags : [],
+        embedding
+      });
+      if (rows.length >= limit) break;
+    }
+
+    offset += batch.length;
   }
 
-  const raw = JSON.parse(readFileSync(DATASET_PATH, 'utf8'));
-  qaDatasetCache = raw
+  return rows.slice(0, limit);
+}
+
+async function getQaDataset() {
+  if (qaDatasetCache) return qaDatasetCache;
+
+  let raw = [];
+  if (existsSync(DATASET_PATH)) {
+    raw = JSON.parse(readFileSync(DATASET_PATH, 'utf8'));
+  }
+
+  let normalized = raw
     .filter((r) => Array.isArray(r.embedding))
     .slice(0, 3000)
     .map((r) => ({
@@ -74,6 +118,19 @@ function getQaDataset() {
       tags: Array.isArray(r.tags) ? r.tags : [],
       embedding: r.embedding.map((n) => Number(n) || 0)
     }));
+
+  if (normalized.length < 3000) {
+    const remoteRows = await fetchRemoteQaDataset(3000);
+    if (remoteRows.length >= 3000) {
+      writeFileSync(DATASET_PATH, JSON.stringify(remoteRows), 'utf8');
+      normalized = remoteRows.map((r) => ({
+        ...r,
+        embedding: r.embedding.map((n) => Number(n) || 0)
+      }));
+    }
+  }
+
+  qaDatasetCache = normalized;
   if (qaDatasetCache.length < 3000) {
     throw new Error(`Dataset has ${qaDatasetCache.length} rows. Please build 3000 rows using: python3 tools/build_stackoverflow_dataset.py`);
   }
@@ -124,7 +181,7 @@ async function handleApi(req, res) {
 
     if (req.method === 'GET' && req.url === '/api/dataset-status') {
       try {
-        const dataset = getQaDataset();
+        const dataset = await getQaDataset();
         return json(res, 200, { ready: true, rows: dataset.length, path: DATASET_PATH });
       } catch (error) {
         return json(res, 200, { ready: false, rows: 0, path: DATASET_PATH, error: error.message });
@@ -196,7 +253,7 @@ async function handleApi(req, res) {
       if (!query) return json(res, 400, { error: 'query is required.' });
 
       const { embedding } = await generateEmbedding(query);
-      const dataset = getQaDataset();
+      const dataset = await getQaDataset();
       if (!dataset.length) return json(res, 400, { error: 'Dataset is empty. Populate data/stackoverflow_3000.json.' });
 
       const results = dataset
