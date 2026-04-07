@@ -98,6 +98,15 @@
           <div class="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             Default: admin/admin123 or user1/user123
           </div>
+
+          <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+            <h3 class="text-lg font-semibold">Programming Semantic Search</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Ask things like: "How to declare array in python"</p>
+            <textarea id="programmingQuery" class="input mt-3 min-h-[120px]" placeholder="Type your programming question..."></textarea>
+            <button id="programmingSearchBtn" type="button" class="btn-primary mt-3">Search with Embeddings</button>
+            <div id="programmingSearchMeta" class="mt-2 text-xs text-slate-500 dark:text-slate-400"></div>
+            <div id="programmingSearchResults" class="mt-3 space-y-3"></div>
+          </div>
         </div>
       </section>
 

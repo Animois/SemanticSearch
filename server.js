@@ -5,6 +5,8 @@ import { spawnSync } from 'child_process';
 
 const root = process.cwd();
 const port = Number(process.env.PORT || 4173);
+const DATASET_PATH = join(root, 'data', 'stackoverflow_3000.json');
+let qaDatasetCache = null;
 
 function loadEnv() {
   const envPath = join(root, '.env');
@@ -53,6 +55,25 @@ function cosine(a = [], b = []) {
   }
   if (!na || !nb) return -1;
   return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function getQaDataset() {
+  if (qaDatasetCache) return qaDatasetCache;
+  if (!existsSync(DATASET_PATH)) {
+    throw new Error('Dataset file missing. Run: python3 tools/build_stackoverflow_dataset.py');
+  }
+
+  const raw = JSON.parse(readFileSync(DATASET_PATH, 'utf8'));
+  qaDatasetCache = raw
+    .filter((r) => Array.isArray(r.embedding))
+    .map((r) => ({
+      id: r.id,
+      question: r.question || '',
+      answer: r.answer || '',
+      tags: Array.isArray(r.tags) ? r.tags : [],
+      embedding: r.embedding.map((n) => Number(n) || 0)
+    }));
+  return qaDatasetCache;
 }
 
 async function generateEmbedding(text) {
@@ -154,6 +175,34 @@ async function handleApi(req, res) {
       if (!body || !String(body.summary || '').trim()) return json(res, 400, { error: 'summary is required.' });
       const { embedding, model } = await generateEmbedding(String(body.summary));
       return json(res, 200, { embedding, model });
+    }
+
+    if (req.method === 'POST' && req.url === '/api/programming-search') {
+      const body = await readBody(req);
+      const query = String(body?.query || '').trim();
+      if (!query) return json(res, 400, { error: 'query is required.' });
+
+      const { embedding } = await generateEmbedding(query);
+      const dataset = getQaDataset();
+      if (!dataset.length) return json(res, 400, { error: 'Dataset is empty. Populate data/stackoverflow_3000.json.' });
+
+      const results = dataset
+        .map((row) => ({
+          ...row,
+          score: cosine(embedding, row.embedding)
+        }))
+        .filter((row) => row.score >= 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 10)
+        .map((row) => ({
+          id: row.id,
+          question: row.question,
+          answer: row.answer,
+          tags: row.tags,
+          score: row.score
+        }));
+
+      return json(res, 200, { results, datasetSize: dataset.length });
     }
 
     if (req.method === 'POST' && req.url === '/api/search') {

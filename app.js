@@ -35,6 +35,10 @@ const userDocumentsCard = document.getElementById("userDocumentsCard");
 
 const adminSearchInput = document.getElementById("adminSearchInput");
 const userSearchInput = document.getElementById("userSearchInput");
+const programmingQuery = document.getElementById("programmingQuery");
+const programmingSearchBtn = document.getElementById("programmingSearchBtn");
+const programmingSearchResults = document.getElementById("programmingSearchResults");
+const programmingSearchMeta = document.getElementById("programmingSearchMeta");
 let activeSearch = { admin: null, user: null };
 let currentSection = "dashboard";
 let previousRoute = null;
@@ -175,6 +179,22 @@ async function localApi(path, options = {}) {
       score: cosine(qv, d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''))
     })).sort((a, b) => b.score - a.score);
     return { documents: scored };
+  }
+
+
+  if (pathname === '/api/programming-search' && method === 'POST') {
+    const query = String(body.query || '').trim();
+    if (!query) throw new Error('query is required.');
+    const qv = fakeEmbedding(query);
+    const rows = db.documents.map((d) => ({
+      id: d.id,
+      question: d.title,
+      answer: d.description || d.summary || '',
+      tags: [],
+      embedding: d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''),
+      score: cosine(qv, d.summaryEmbedding?.vector || fakeEmbedding(d.summary || ''))
+    })).sort((a,b)=>b.score-a.score).slice(0,10);
+    return { results: rows, datasetSize: db.documents.length };
   }
 
   throw new Error(`Unsupported local API route: ${method} ${pathname}`);
@@ -524,6 +544,30 @@ async function deleteUser(userInternalId) {
   await renderApp();
 }
 
+
+function renderProgrammingResults(results = []) {
+  if (!programmingSearchResults) return;
+  programmingSearchResults.innerHTML = "";
+
+  if (!results.length) {
+    programmingSearchResults.innerHTML = `<div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-3 text-sm text-slate-500 dark:text-slate-400">No matching programming results found.</div>`;
+    return;
+  }
+
+  results.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3';
+    const tags = (item.tags || []).slice(0, 6).join(', ');
+    card.innerHTML = `
+      <p class="text-xs text-slate-500 dark:text-slate-400">#${idx + 1} • Score: ${Number(item.score || 0).toFixed(4)}</p>
+      <h4 class="font-semibold mt-1">${item.question || 'Untitled question'}</h4>
+      <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">${(item.answer || '').slice(0, 320)}</p>
+      <p class="text-xs text-indigo-600 dark:text-indigo-300 mt-2">${tags}</p>
+    `;
+    programmingSearchResults.appendChild(card);
+  });
+}
+
 async function semanticSearch(query) {
   const result = await api('/api/search', {
     method: 'POST',
@@ -717,6 +761,36 @@ userSearchInput?.addEventListener('keydown', async (e) => {
   if (!q) { activeSearch.user = null; return renderUserDashboard(); }
   activeSearch.user = await semanticSearch(q);
   renderUserDashboard();
+});
+
+
+programmingSearchBtn?.addEventListener('click', async () => {
+  const query = String(programmingQuery?.value || '').trim();
+  if (!query) {
+    alert('Please enter a programming question.');
+    return;
+  }
+
+  programmingSearchBtn.disabled = true;
+  const original = programmingSearchBtn.textContent;
+  programmingSearchBtn.textContent = 'Searching...';
+
+  try {
+    const data = await api('/api/programming-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query })
+    });
+    programmingSearchMeta.textContent = `Matched from ${data.datasetSize || 0} dataset rows.`;
+    renderProgrammingResults(data.results || []);
+  } catch (error) {
+    programmingSearchMeta.textContent = '';
+    renderProgrammingResults([]);
+    alert(`Programming search failed: ${error.message}`);
+  } finally {
+    programmingSearchBtn.disabled = false;
+    programmingSearchBtn.textContent = original;
+  }
 });
 
 backBtn.addEventListener("click", () => {
