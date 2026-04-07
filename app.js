@@ -35,10 +35,14 @@ const userDocumentsCard = document.getElementById("userDocumentsCard");
 
 const adminSearchInput = document.getElementById("adminSearchInput");
 const userSearchInput = document.getElementById("userSearchInput");
-const programmingQuery = document.getElementById("programmingQuery");
-const programmingSearchBtn = document.getElementById("programmingSearchBtn");
-const programmingSearchResults = document.getElementById("programmingSearchResults");
-const programmingSearchMeta = document.getElementById("programmingSearchMeta");
+const adminProgrammingQuery = document.getElementById("adminProgrammingQuery");
+const adminProgrammingSearchBtn = document.getElementById("adminProgrammingSearchBtn");
+const adminProgrammingSearchResults = document.getElementById("adminProgrammingSearchResults");
+const adminProgrammingSearchMeta = document.getElementById("adminProgrammingSearchMeta");
+const userProgrammingQuery = document.getElementById("userProgrammingQuery");
+const userProgrammingSearchBtn = document.getElementById("userProgrammingSearchBtn");
+const userProgrammingSearchResults = document.getElementById("userProgrammingSearchResults");
+const userProgrammingSearchMeta = document.getElementById("userProgrammingSearchMeta");
 let activeSearch = { admin: null, user: null };
 let currentSection = "dashboard";
 let previousRoute = null;
@@ -545,12 +549,12 @@ async function deleteUser(userInternalId) {
 }
 
 
-function renderProgrammingResults(results = []) {
-  if (!programmingSearchResults) return;
-  programmingSearchResults.innerHTML = "";
+function renderProgrammingResults(container, results = []) {
+  if (!container) return;
+  container.innerHTML = "";
 
   if (!results.length) {
-    programmingSearchResults.innerHTML = `<div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-3 text-sm text-slate-500 dark:text-slate-400">No matching programming results found.</div>`;
+    container.innerHTML = `<div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-3 text-sm text-slate-500 dark:text-slate-400">No matching programming results found.</div>`;
     return;
   }
 
@@ -564,7 +568,7 @@ function renderProgrammingResults(results = []) {
       <p class="text-sm text-slate-600 dark:text-slate-300 mt-1">${(item.answer || '').slice(0, 320)}</p>
       <p class="text-xs text-indigo-600 dark:text-indigo-300 mt-2">${tags}</p>
     `;
-    programmingSearchResults.appendChild(card);
+    container.appendChild(card);
   });
 }
 
@@ -764,16 +768,16 @@ userSearchInput?.addEventListener('keydown', async (e) => {
 });
 
 
-programmingSearchBtn?.addEventListener('click', async () => {
-  const query = String(programmingQuery?.value || '').trim();
+async function runProgrammingSearch({ queryInput, button, meta, resultsContainer }) {
+  const query = String(queryInput?.value || '').trim();
   if (!query) {
     alert('Please enter a programming question.');
     return;
   }
 
-  programmingSearchBtn.disabled = true;
-  const original = programmingSearchBtn.textContent;
-  programmingSearchBtn.textContent = 'Searching...';
+  button.disabled = true;
+  const original = button.textContent;
+  button.textContent = 'Searching...';
 
   try {
     const data = await api('/api/programming-search', {
@@ -781,17 +785,35 @@ programmingSearchBtn?.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query })
     });
-    programmingSearchMeta.textContent = `Matched from ${data.datasetSize || 0} dataset rows.`;
-    renderProgrammingResults(data.results || []);
+    if (meta) meta.textContent = `Matched from ${data.datasetSize || 0} dataset rows.`;
+    renderProgrammingResults(resultsContainer, data.results || []);
   } catch (error) {
-    programmingSearchMeta.textContent = '';
-    renderProgrammingResults([]);
+    if (meta) meta.textContent = '';
+    renderProgrammingResults(resultsContainer, []);
     alert(`Programming search failed: ${error.message}`);
   } finally {
-    programmingSearchBtn.disabled = false;
-    programmingSearchBtn.textContent = original;
+    button.disabled = false;
+    button.textContent = original;
   }
-});
+}
+
+adminProgrammingSearchBtn?.addEventListener('click', () =>
+  runProgrammingSearch({
+    queryInput: adminProgrammingQuery,
+    button: adminProgrammingSearchBtn,
+    meta: adminProgrammingSearchMeta,
+    resultsContainer: adminProgrammingSearchResults
+  })
+);
+
+userProgrammingSearchBtn?.addEventListener('click', () =>
+  runProgrammingSearch({
+    queryInput: userProgrammingQuery,
+    button: userProgrammingSearchBtn,
+    meta: userProgrammingSearchMeta,
+    resultsContainer: userProgrammingSearchResults
+  })
+);
 
 backBtn.addEventListener("click", () => {
   navigateTo(previousRoute);
