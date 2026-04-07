@@ -800,7 +800,7 @@ async function runProgrammingSearch({ queryInput, button, meta, resultsContainer
   } catch (error) {
     if (meta) meta.textContent = '';
     renderProgrammingResults(resultsContainer, []);
-    alert(`Programming search failed: ${error.message}`);
+    alert(`Programming search failed: ${error.message}\nTip: run \"python3 tools/build_stackoverflow_dataset.py\" and ensure GITHUB_TOKEN is set.`);
   } finally {
     button.disabled = false;
     button.textContent = original;

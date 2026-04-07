@@ -66,6 +66,7 @@ function getQaDataset() {
   const raw = JSON.parse(readFileSync(DATASET_PATH, 'utf8'));
   qaDatasetCache = raw
     .filter((r) => Array.isArray(r.embedding))
+    .slice(0, 3000)
     .map((r) => ({
       id: r.id,
       question: r.question || '',
@@ -73,6 +74,9 @@ function getQaDataset() {
       tags: Array.isArray(r.tags) ? r.tags : [],
       embedding: r.embedding.map((n) => Number(n) || 0)
     }));
+  if (qaDatasetCache.length < 3000) {
+    throw new Error(`Dataset has ${qaDatasetCache.length} rows. Please build 3000 rows using: python3 tools/build_stackoverflow_dataset.py`);
+  }
   return qaDatasetCache;
 }
 
@@ -116,6 +120,15 @@ async function handleApi(req, res) {
 
     if (req.method === 'GET' && req.url === '/api/meta') {
       return json(res, 200, { database: join(root, 'app.db') });
+    }
+
+    if (req.method === 'GET' && req.url === '/api/dataset-status') {
+      try {
+        const dataset = getQaDataset();
+        return json(res, 200, { ready: true, rows: dataset.length, path: DATASET_PATH });
+      } catch (error) {
+        return json(res, 200, { ready: false, rows: 0, path: DATASET_PATH, error: error.message });
+      }
     }
 
     if (req.method === 'POST' && req.url === '/api/login') {
