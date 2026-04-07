@@ -43,6 +43,8 @@ const userProgrammingQuery = document.getElementById("userProgrammingQuery");
 const userProgrammingSearchBtn = document.getElementById("userProgrammingSearchBtn");
 const userProgrammingSearchResults = document.getElementById("userProgrammingSearchResults");
 const userProgrammingSearchMeta = document.getElementById("userProgrammingSearchMeta");
+const legacyProgrammingQuery = document.getElementById("programmingQuery");
+const legacyProgrammingSearchBtn = document.getElementById("programmingSearchBtn");
 let activeSearch = { admin: null, user: null };
 let currentSection = "dashboard";
 let previousRoute = null;
@@ -238,6 +240,13 @@ function setVisibleView(viewName) {
   views[viewName].classList.remove("hidden");
 }
 
+
+function hideLegacyLoginProgrammingSearch() {
+  const legacyContainer = legacyProgrammingQuery?.closest('.rounded-2xl');
+  if (legacyContainer) legacyContainer.classList.add('hidden');
+  if (legacyProgrammingSearchBtn) legacyProgrammingSearchBtn.disabled = true;
+}
+
 function setupPasswordToggles() {
   document.querySelectorAll('.password-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -374,6 +383,7 @@ async function renderApp() {
   if (!session.userId) {
     logoutBtn.hidden = true;
     backBtn.hidden = true;
+    hideLegacyLoginProgrammingSearch();
     if (currentVisibleView() !== "signup") {
       setVisibleView("login");
       animateView("login");
@@ -829,6 +839,7 @@ if (!openSignupBtn || !signupForm || !views.signup) {
   console.warn('Signup UI elements are missing. Ensure latest index.html is deployed with app.js.');
 }
 
+hideLegacyLoginProgrammingSearch();
 setupPasswordToggles();
 initializeTheme();
 renderApp();
